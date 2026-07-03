@@ -1,0 +1,36 @@
+# Solaffle VRF keeper — runs every 5 minutes on GitHub Actions (free).
+# Repo secrets required (Settings -> Secrets and variables -> Actions -> New secret):
+#   RPC_URL        your Helius RPC URL
+#   KEEPER_SECRET  the keeper wallet's [12,34,...] secret-key array
+# solotto_raffle.json (the IDL) is committed in this repo — it's public, safe to commit.
+#
+# Note: Actions cron has a 5-min minimum and runs can be delayed a few minutes
+# under load, so raffles may draw a little after becoming endable. Fine for devnet.
+# Also: Actions auto-pauses scheduled workflows after 60 days of repo inactivity.
+
+name: solaffle-keeper
+
+on:
+  schedule:
+    - cron: "*/5 * * * *" # every 5 minutes
+  workflow_dispatch: {} # manual "Run workflow" button in the Actions tab
+
+concurrency:
+  group: solaffle-keeper
+  cancel-in-progress: false
+
+jobs:
+  keep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci || npm install
+      - run: npm run once
+        env:
+          RPC_URL: ${{ secrets.RPC_URL }}
+          KEEPER_SECRET: ${{ secrets.KEEPER_SECRET }}

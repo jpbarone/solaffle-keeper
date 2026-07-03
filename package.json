@@ -1,0 +1,24 @@
+{
+  "name": "solaffle-keeper",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Solaffle VRF keeper — automated Switchboard draws + prize delivery (Node runtime)",
+  "scripts": {
+    "start": "tsx index.ts",
+    "once": "tsx index.ts --once"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/spl-token": "^0.4.9",
+    "@solana/web3.js": "^1.98.0",
+    "@switchboard-xyz/on-demand": "^3.10.0",
+    "tsx": "^4.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

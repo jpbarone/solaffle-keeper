@@ -1,0 +1,3 @@
+# MOVED — the active workflow now lives at .github/workflows/keeper.yml
+# (GitHub only runs workflows under .github/workflows/). This file is unused and
+# can be deleted.

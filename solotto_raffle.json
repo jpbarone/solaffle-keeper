@@ -1,0 +1,2093 @@
+{
+  "address": "8myz5A4jzJ5LqZbCju9aS9tUnFxqMLih5RPeVjttWCYN",
+  "metadata": {
+    "name": "solotto_raffle",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "On-chain product raffle (DealDash-style) for Solana"
+  },
+  "instructions": [
+    {
+      "name": "buy_tickets",
+      "docs": [
+        "Buy `quantity` tickets in a single transaction. More tickets = more",
+        "weight in the draw. SOL is moved into the raffle PDA via a CPI to the",
+        "system program; we track the running pool in `prize_pool`."
+      ],
+      "discriminator": [
+        48,
+        16,
+        122,
+        137,
+        24,
+        214,
+        198,
+        58
+      ],
+      "accounts": [
+        {
+          "name": "raffle",
+          "writable": true
+        },
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "quantity",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "cancel_raffle",
+      "docs": [
+        "Operator cancels a raffle that has no participants yet and reclaims any",
+        "escrowed SOL prize. Only valid while Open with zero tickets sold (so no",
+        "buyer is ever stranded)."
+      ],
+      "discriminator": [
+        135,
+        191,
+        223,
+        141,
+        192,
+        186,
+        234,
+        254
+      ],
+      "accounts": [
+        {
+          "name": "raffle",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "raffle"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_prize",
+      "docs": [
+        "Winner acknowledges the win. Emits an event an off-chain fulfillment",
+        "service watches to ship the physical item / deliver the digital prize."
+      ],
+      "discriminator": [
+        157,
+        233,
+        139,
+        121,
+        246,
+        62,
+        234,
+        235
+      ],
+      "accounts": [
+        {
+          "name": "raffle",
+          "writable": true
+        },
+        {
+          "name": "winner",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_refund",
+      "docs": [
+        "Reclaim ticket money if the raffle failed to hit its minimum."
+      ],
+      "discriminator": [
+        15,
+        16,
+        30,
+        161,
+        255,
+        228,
+        97,
+        60
+      ],
+      "accounts": [
+        {
+          "name": "raffle",
+          "writable": true
+        },
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_raffle",
+      "docs": [
+        "Create a product raffle. The prize (a TV, a gift card, etc.) lives",
+        "off-chain; this account holds the ticket money + the rules.",
+        "",
+        "`max_entries` bounds the number of *unique* buyers (the account is",
+        "sized up front), which keeps the on-chain vec from blowing past",
+        "Solana's account size limits. Repeat purchases by the same wallet are",
+        "merged into one entry, so 10k tickets across 300 wallets = 300 entries."
+      ],
+      "discriminator": [
+        226,
+        206,
+        159,
+        34,
+        213,
+        207,
+        98,
+        126
+      ],
+      "accounts": [
+        {
+          "name": "raffle",
+          "writable": true
+        },
+        {
+          "name": "master",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  115,
+                  116,
+                  101,
+                  114
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "ticket_price",
+          "type": "u64"
+        },
+        {
+          "name": "fee_bps",
+          "type": "u64"
+        },
+        {
+          "name": "min_tickets",
+          "type": "u32"
+        },
+        {
+          "name": "max_tickets",
+          "type": "u32"
+        },
+        {
+          "name": "max_entries",
+          "type": "u16"
+        },
+        {
+          "name": "duration_seconds",
+          "type": "i64"
+        },
+        {
+          "name": "description",
+          "type": "string"
+        },
+        {
+          "name": "prize_kind",
+          "type": {
+            "defined": {
+              "name": "PrizeKind"
+            }
+          }
+        },
+        {
+          "name": "prize_amount",
+          "type": "u64"
+        },
+        {
+          "name": "prize_mint",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "deliver_prize",
+      "docs": [
+        "Send the escrowed SOL prize to the recorded winner. Permissionless: it",
+        "can only ever pay the winner stored on-chain, and runs once (guarded by",
+        "`prize_delivered`). A keeper calls this right after the draw.",
+        "(Token/NFT delivery uses anchor-spl and lands in v2.1.)"
+      ],
+      "discriminator": [
+        18,
+        227,
+        179,
+        220,
+        150,
+        57,
+        242,
+        17
+      ],
+      "accounts": [
+        {
+          "name": "raffle",
+          "writable": true
+        },
+        {
+          "name": "winner_account",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "deliver_prize_token",
+      "docs": [
+        "Deliver the escrowed token/NFT to the recorded winner. Permissionless",
+        "(any signer pays the winner-ATA rent); can only ever send to the winner",
+        "stored on-chain, and only once."
+      ],
+      "discriminator": [
+        5,
+        93,
+        60,
+        116,
+        174,
+        14,
+        52,
+        242
+      ],
+      "accounts": [
+        {
+          "name": "raffle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  102,
+                  102,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "raffle.id",
+                "account": "Raffle"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "docs": [
+            "Pays the winner-ATA rent if it doesn't exist yet (e.g. the keeper)."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "prize_mint"
+        },
+        {
+          "name": "escrow_token",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "raffle"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "prize_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "winner"
+        },
+        {
+          "name": "winner_token",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "winner"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "prize_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "draw_winner",
+      "docs": [
+        "End the raffle. Callable by the authority once the deadline has passed,",
+        "or early once all tickets are sold.",
+        "",
+        "- If `tickets_sold >= min_tickets`: pick a weighted-random winner,",
+        "send proceeds (minus fee) to the payout recipient and the fee to the",
+        "fee recipient. The winner is recorded on-chain for off-chain",
+        "fulfillment of the physical/digital prize.",
+        "- Otherwise: the raffle failed to hit its floor -> flip to `Refunding`",
+        "so every buyer can reclaim their SOL.",
+        "",
+        "RANDOMNESS NOTE: this uses the SlotHashes sysvar as an entropy source,",
+        "which is good enough for a devnet demo but is theoretically",
+        "influenceable by a colluding leader. For mainnet, swap `derive_random`",
+        "for a Switchboard On-Demand / VRF callback."
+      ],
+      "discriminator": [
+        250,
+        103,
+        118,
+        147,
+        219,
+        235,
+        169,
+        220
+      ],
+      "accounts": [
+        {
+          "name": "raffle",
+          "writable": true
+        },
+        {
+          "name": "payout_recipient",
+          "writable": true
+        },
+        {
+          "name": "fee_recipient",
+          "writable": true
+        },
+        {
+          "name": "recent_slothashes"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "fund_prize_sol",
+      "docs": [
+        "Operator deposits the SOL prize into escrow (held by the raffle PDA,",
+        "tracked separately from the ticket pool via `prize_amount`). Required",
+        "before tickets can be bought for a `Sol`-kind raffle."
+      ],
+      "discriminator": [
+        190,
+        84,
+        47,
+        75,
+        150,
+        163,
+        151,
+        63
+      ],
+      "accounts": [
+        {
+          "name": "raffle",
+          "writable": true
+        },
+        {
+          "name": "funder",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "fund_prize_token",
+      "docs": [
+        "Operator escrows the SPL token / NFT prize. Required before tickets sell."
+      ],
+      "discriminator": [
+        188,
+        178,
+        3,
+        96,
+        203,
+        252,
+        42,
+        70
+      ],
+      "accounts": [
+        {
+          "name": "raffle",
+          "writable": true
+        },
+        {
+          "name": "funder",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "prize_mint"
+        },
+        {
+          "name": "funder_token",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "funder"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "prize_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "escrow_token",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "raffle"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "prize_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "init_master",
+      "docs": [
+        "One-time global init. Tracks the auto-incrementing raffle id."
+      ],
+      "discriminator": [
+        168,
+        49,
+        22,
+        248,
+        228,
+        56,
+        111,
+        24
+      ],
+      "accounts": [
+        {
+          "name": "master",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  115,
+                  116,
+                  101,
+                  114
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "reclaim_prize",
+      "docs": [
+        "Operator reclaims the escrowed SOL prize from a raffle that FAILED its",
+        "floor (status `Refunding`). Buyers still reclaim their ticket money",
+        "separately via `claim_refund`, so the status stays `Refunding` — this",
+        "only returns the operator's escrowed prize. Permissionless, but the",
+        "prize can only ever go back to the recorded `authority` (so a keeper can",
+        "run it), and only once (guarded by `prize_delivered`)."
+      ],
+      "discriminator": [
+        74,
+        240,
+        215,
+        247,
+        126,
+        227,
+        246,
+        135
+      ],
+      "accounts": [
+        {
+          "name": "raffle",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "docs": [
+            "prize. No signature required, so a keeper can trigger it — funds can",
+            "only ever go back to the recorded authority."
+          ],
+          "writable": true,
+          "relations": [
+            "raffle"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "reclaim_prize_token",
+      "docs": [
+        "Operator reclaims the escrowed token/NFT when no winner will receive it:",
+        "a zero-ticket raffle (closes it) or one that failed its floor",
+        "(`Refunding`; buyers still claim ticket refunds separately)."
+      ],
+      "discriminator": [
+        48,
+        188,
+        109,
+        164,
+        100,
+        169,
+        9,
+        189
+      ],
+      "accounts": [
+        {
+          "name": "raffle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  102,
+                  102,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "raffle.id",
+                "account": "Raffle"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "raffle"
+          ]
+        },
+        {
+          "name": "prize_mint"
+        },
+        {
+          "name": "escrow_token",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "raffle"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "prize_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "authority_token",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "authority"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "prize_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "request_draw",
+      "docs": [
+        "STEP 1 (commit). Authority ends the raffle and locks in a Switchboard",
+        "randomness commitment. Must be bundled with Switchboard's `commitIx` in",
+        "the same transaction so the committed slot is fresh.",
+        "",
+        "If the raffle missed its floor, there's nothing to randomize — it goes",
+        "straight to Refunding, exactly like the dev path."
+      ],
+      "discriminator": [
+        22,
+        180,
+        8,
+        81,
+        47,
+        21,
+        86,
+        159
+      ],
+      "accounts": [
+        {
+          "name": "raffle",
+          "writable": true
+        },
+        {
+          "name": "randomness_account_data",
+          "docs": [
+            "handler (RandomnessAccountData::parse checks the discriminator)."
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "set_fee_recipient",
+      "docs": [
+        "Re-point where the platform fee goes (e.g. a treasury wallet)."
+      ],
+      "discriminator": [
+        227,
+        18,
+        215,
+        42,
+        237,
+        246,
+        151,
+        66
+      ],
+      "accounts": [
+        {
+          "name": "raffle",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "raffle"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "new_recipient",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "set_payout_recipient",
+      "docs": [
+        "Re-point where sale proceeds go."
+      ],
+      "discriminator": [
+        194,
+        188,
+        17,
+        106,
+        241,
+        53,
+        168,
+        242
+      ],
+      "accounts": [
+        {
+          "name": "raffle",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "raffle"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "new_recipient",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "settle_draw",
+      "docs": [
+        "STEP 2 (reveal). Reads the revealed Switchboard value, picks the",
+        "weighted winner, and pays out. Must be bundled with Switchboard's",
+        "`revealIx` in the same transaction."
+      ],
+      "discriminator": [
+        175,
+        154,
+        75,
+        30,
+        118,
+        117,
+        107,
+        194
+      ],
+      "accounts": [
+        {
+          "name": "raffle",
+          "writable": true
+        },
+        {
+          "name": "randomness_account_data",
+          "docs": [
+            "verified in the handler."
+          ]
+        },
+        {
+          "name": "payout_recipient",
+          "writable": true
+        },
+        {
+          "name": "fee_recipient",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "transfer_authority",
+      "docs": [
+        "Hand the raffle to a new authority."
+      ],
+      "discriminator": [
+        48,
+        169,
+        76,
+        72,
+        229,
+        180,
+        55,
+        161
+      ],
+      "accounts": [
+        {
+          "name": "raffle",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "raffle"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "new_authority",
+          "type": "pubkey"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Master",
+      "discriminator": [
+        168,
+        213,
+        193,
+        12,
+        77,
+        162,
+        58,
+        235
+      ]
+    },
+    {
+      "name": "Raffle",
+      "discriminator": [
+        143,
+        133,
+        63,
+        173,
+        138,
+        10,
+        142,
+        200
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "DrawRequested",
+      "discriminator": [
+        59,
+        172,
+        219,
+        42,
+        28,
+        94,
+        93,
+        75
+      ]
+    },
+    {
+      "name": "PrizeClaimed",
+      "discriminator": [
+        213,
+        150,
+        192,
+        76,
+        199,
+        33,
+        212,
+        38
+      ]
+    },
+    {
+      "name": "PrizeDelivered",
+      "discriminator": [
+        89,
+        164,
+        100,
+        134,
+        202,
+        76,
+        141,
+        143
+      ]
+    },
+    {
+      "name": "PrizeFunded",
+      "discriminator": [
+        121,
+        155,
+        24,
+        51,
+        96,
+        29,
+        92,
+        153
+      ]
+    },
+    {
+      "name": "PrizeReclaimed",
+      "discriminator": [
+        187,
+        81,
+        244,
+        34,
+        63,
+        0,
+        122,
+        216
+      ]
+    },
+    {
+      "name": "RaffleCreated",
+      "discriminator": [
+        178,
+        172,
+        201,
+        96,
+        233,
+        171,
+        6,
+        99
+      ]
+    },
+    {
+      "name": "RaffleFailed",
+      "discriminator": [
+        135,
+        207,
+        186,
+        78,
+        167,
+        55,
+        96,
+        143
+      ]
+    },
+    {
+      "name": "Refunded",
+      "discriminator": [
+        35,
+        103,
+        149,
+        246,
+        196,
+        123,
+        221,
+        99
+      ]
+    },
+    {
+      "name": "TicketsPurchased",
+      "discriminator": [
+        185,
+        114,
+        111,
+        225,
+        124,
+        92,
+        18,
+        143
+      ]
+    },
+    {
+      "name": "WinnerDrawn",
+      "discriminator": [
+        213,
+        103,
+        5,
+        118,
+        145,
+        75,
+        146,
+        120
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidTicketPrice",
+      "msg": "Ticket price must be greater than zero."
+    },
+    {
+      "code": 6001,
+      "name": "FeeTooHigh",
+      "msg": "Fee exceeds the allowed maximum."
+    },
+    {
+      "code": 6002,
+      "name": "InvalidThresholds",
+      "msg": "Invalid ticket thresholds."
+    },
+    {
+      "code": 6003,
+      "name": "InvalidDuration",
+      "msg": "Duration must be greater than zero."
+    },
+    {
+      "code": 6004,
+      "name": "DescriptionTooLong",
+      "msg": "Description is too long."
+    },
+    {
+      "code": 6005,
+      "name": "ZeroQuantity",
+      "msg": "Quantity must be greater than zero."
+    },
+    {
+      "code": 6006,
+      "name": "RaffleClosed",
+      "msg": "The raffle is not open."
+    },
+    {
+      "code": 6007,
+      "name": "RaffleExpired",
+      "msg": "The raffle deadline has passed."
+    },
+    {
+      "code": 6008,
+      "name": "SoldOut",
+      "msg": "All tickets are sold."
+    },
+    {
+      "code": 6009,
+      "name": "EntryLimitReached",
+      "msg": "Unique-buyer limit reached for this raffle."
+    },
+    {
+      "code": 6010,
+      "name": "RaffleStillActive",
+      "msg": "The raffle is still active."
+    },
+    {
+      "code": 6011,
+      "name": "RaffleNotEnded",
+      "msg": "The raffle has not ended."
+    },
+    {
+      "code": 6012,
+      "name": "NoParticipants",
+      "msg": "There are no participants."
+    },
+    {
+      "code": 6013,
+      "name": "InvalidSlotHashes",
+      "msg": "Provided SlotHashes sysvar is invalid."
+    },
+    {
+      "code": 6014,
+      "name": "WrongPayoutRecipient",
+      "msg": "Payout recipient does not match the raffle."
+    },
+    {
+      "code": 6015,
+      "name": "WrongFeeRecipient",
+      "msg": "Fee recipient does not match the raffle."
+    },
+    {
+      "code": 6016,
+      "name": "NotWinner",
+      "msg": "You are not the winner."
+    },
+    {
+      "code": 6017,
+      "name": "AlreadyClaimed",
+      "msg": "The prize has already been claimed."
+    },
+    {
+      "code": 6018,
+      "name": "NotRefunding",
+      "msg": "The raffle is not in refund mode."
+    },
+    {
+      "code": 6019,
+      "name": "AlreadyRefunded",
+      "msg": "This wallet has already been refunded."
+    },
+    {
+      "code": 6020,
+      "name": "Unauthorized",
+      "msg": "You are not authorized."
+    },
+    {
+      "code": 6021,
+      "name": "Overflow",
+      "msg": "Arithmetic overflow."
+    },
+    {
+      "code": 6022,
+      "name": "NotDrawing",
+      "msg": "The raffle is not awaiting a VRF draw."
+    },
+    {
+      "code": 6023,
+      "name": "InvalidRandomnessAccount",
+      "msg": "Invalid or mismatched Switchboard randomness account."
+    },
+    {
+      "code": 6024,
+      "name": "RandomnessExpired",
+      "msg": "Randomness commitment is stale or from the wrong slot."
+    },
+    {
+      "code": 6025,
+      "name": "RandomnessAlreadyRevealed",
+      "msg": "Randomness has already been revealed."
+    },
+    {
+      "code": 6026,
+      "name": "RandomnessNotResolved",
+      "msg": "Randomness has not been resolved yet."
+    },
+    {
+      "code": 6027,
+      "name": "VrfDisabled",
+      "msg": "VRF draw path is disabled in this build (compile with --features vrf)."
+    },
+    {
+      "code": 6028,
+      "name": "InvalidPrize",
+      "msg": "Invalid prize configuration for this prize kind."
+    },
+    {
+      "code": 6029,
+      "name": "WrongPrizeKind",
+      "msg": "Wrong prize kind for this instruction."
+    },
+    {
+      "code": 6030,
+      "name": "AlreadyFunded",
+      "msg": "The prize has already been funded."
+    },
+    {
+      "code": 6031,
+      "name": "PrizeNotFunded",
+      "msg": "The on-chain prize has not been funded yet."
+    },
+    {
+      "code": 6032,
+      "name": "AlreadyDelivered",
+      "msg": "The prize has already been delivered."
+    },
+    {
+      "code": 6033,
+      "name": "HasParticipants",
+      "msg": "The raffle already has participants."
+    }
+  ],
+  "types": [
+    {
+      "name": "DrawRequested",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u32"
+          },
+          {
+            "name": "randomness_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "commit_slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Entry",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "tickets",
+            "type": "u32"
+          },
+          {
+            "name": "refunded",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Master",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "last_id",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PrizeClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u32"
+          },
+          {
+            "name": "winner",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PrizeDelivered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u32"
+          },
+          {
+            "name": "winner",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PrizeFunded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u32"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PrizeKind",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "OffChain"
+          },
+          {
+            "name": "Sol"
+          },
+          {
+            "name": "Token"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PrizeReclaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u32"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Raffle",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u32"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "payout_recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "fee_recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "ticket_price",
+            "type": "u64"
+          },
+          {
+            "name": "fee_bps",
+            "type": "u64"
+          },
+          {
+            "name": "prize_pool",
+            "type": "u64"
+          },
+          {
+            "name": "tickets_sold",
+            "type": "u32"
+          },
+          {
+            "name": "min_tickets",
+            "type": "u32"
+          },
+          {
+            "name": "max_tickets",
+            "type": "u32"
+          },
+          {
+            "name": "max_entries",
+            "type": "u16"
+          },
+          {
+            "name": "end_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "RaffleStatus"
+              }
+            }
+          },
+          {
+            "name": "winner",
+            "type": "pubkey"
+          },
+          {
+            "name": "winning_ticket",
+            "type": "u32"
+          },
+          {
+            "name": "prize_claimed",
+            "type": "bool"
+          },
+          {
+            "name": "randomness_account",
+            "docs": [
+              "The Switchboard randomness account committed for this draw (set in",
+              "request_draw, verified in settle_draw). Default until a VRF draw begins."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "commit_slot",
+            "docs": [
+              "The slot the randomness was committed to (seed_slot at commit time)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "prize_kind",
+            "docs": [
+              "What the winner receives: OffChain (ship it), Sol, or Token (SPL/NFT)."
+            ],
+            "type": {
+              "defined": {
+                "name": "PrizeKind"
+              }
+            }
+          },
+          {
+            "name": "prize_amount",
+            "docs": [
+              "Lamports (Sol) or token amount (Token; 1 for an NFT). 0 for OffChain."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "prize_mint",
+            "docs": [
+              "SPL mint for Token prizes; Pubkey::default() otherwise."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "prize_funded",
+            "docs": [
+              "Operator has deposited the on-chain prize into escrow."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "prize_delivered",
+            "docs": [
+              "Escrowed prize has been delivered to the winner (guards double-send)."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "description",
+            "type": "string"
+          },
+          {
+            "name": "entries",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "Entry"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "RaffleCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u32"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "ticket_price",
+            "type": "u64"
+          },
+          {
+            "name": "max_tickets",
+            "type": "u32"
+          },
+          {
+            "name": "end_timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RaffleFailed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u32"
+          },
+          {
+            "name": "tickets_sold",
+            "type": "u32"
+          },
+          {
+            "name": "min_tickets",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RaffleStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Open"
+          },
+          {
+            "name": "Drawing"
+          },
+          {
+            "name": "Completed"
+          },
+          {
+            "name": "Refunding"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Refunded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u32"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TicketsPurchased",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u32"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "quantity",
+            "type": "u32"
+          },
+          {
+            "name": "tickets_sold",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WinnerDrawn",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u32"
+          },
+          {
+            "name": "winner",
+            "type": "pubkey"
+          },
+          {
+            "name": "winning_ticket",
+            "type": "u32"
+          },
+          {
+            "name": "proceeds",
+            "type": "u64"
+          },
+          {
+            "name": "fee",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}
