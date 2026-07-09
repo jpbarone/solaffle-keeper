@@ -51,6 +51,30 @@ const statusOf = (r: any) => Object.keys(r.status)[0]; // "open" | "drawing" | "
 const n = (v: any) => (typeof v === "number" ? v : Number(v.toString()));
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Retry a flaky network/RPC call a few times before giving up. Transient RPC
+// errors (504s, rate limits) are common on shared endpoints — one blip should
+// not crash the whole run.
+async function withRetry<T>(
+  label: string,
+  fn: () => Promise<T>,
+  tries = 4,
+  delayMs = 2500
+): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 1; i <= tries; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      if (i < tries) {
+        console.warn(`${label} attempt ${i}/${tries} failed: ${(e as Error).message} — retrying in ${delayMs}ms`);
+        await sleep(delayMs);
+      }
+    }
+  }
+  throw lastErr;
+}
+
 function loadEnv() {
   const RPC_URL = process.env.RPC_URL;
   const KEEPER_SECRET = process.env.KEEPER_SECRET;
@@ -163,11 +187,17 @@ export async function runKeeper() {
   });
   const program: any = new anchor.Program(idl as anchor.Idl, provider);
 
-  const sbProgram = await sb.AnchorUtils.loadProgramFromConnection(conn);
-  const queue = (await sb.Queue.loadDefault(sbProgram)).pubkey;
+  const sbProgram = await withRetry("load switchboard program", () =>
+    sb.AnchorUtils.loadProgramFromConnection(conn)
+  );
+  const queue = (
+    await withRetry("load switchboard queue", () => sb.Queue.loadDefault(sbProgram))
+  ).pubkey;
 
   const now = Math.floor(Date.now() / 1000);
-  const raffles = await program.account.raffle.all();
+  const raffles = (await withRetry("fetch all raffles", () =>
+    program.account.raffle.all()
+  )) as any[];
   let drew = 0,
     settledStuck = 0,
     refunded = 0,
@@ -236,7 +266,15 @@ export async function runKeeper() {
     const r = it.account;
     const rafflePk = it.publicKey;
     if (!(r.prizeFunded && !r.prizeDelivered)) continue;
-    const fresh = await program.account.raffle.fetch(rafflePk);
+    let fresh: any;
+    try {
+      fresh = await withRetry("refetch raffle", () =>
+        program.account.raffle.fetch(rafflePk)
+      );
+    } catch (e) {
+      errors.push(`deliver-fetch raffle ${n(r.id)}: ${(e as Error).message}`);
+      continue;
+    }
     if (statusOf(fresh) !== "completed" || fresh.prizeDelivered) continue;
     const kind = kindOf(fresh);
     try {
