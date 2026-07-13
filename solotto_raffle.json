@@ -1,5 +1,5 @@
 {
-  "address": "8myz5A4jzJ5LqZbCju9aS9tUnFxqMLih5RPeVjttWCYN",
+  "address": "9Jo6baXFEwhpAxYR3wMoie5AXwg99xPdd8ziQ6gyQgzr",
   "metadata": {
     "name": "solotto_raffle",
     "version": "0.1.0",
@@ -193,10 +193,6 @@
       "args": [
         {
           "name": "ticket_price",
-          "type": "u64"
-        },
-        {
-          "name": "fee_bps",
           "type": "u64"
         },
         {
@@ -825,7 +821,9 @@
     {
       "name": "init_master",
       "docs": [
-        "One-time global init. Tracks the auto-incrementing raffle id."
+        "One-time global init. Tracks the auto-incrementing raffle id and the",
+        "platform config (admin authority, treasury, protocol fee). The signer",
+        "becomes the platform authority (can update the config later)."
       ],
       "discriminator": [
         168,
@@ -867,7 +865,16 @@
           "address": "11111111111111111111111111111111"
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "treasury",
+          "type": "pubkey"
+        },
+        {
+          "name": "platform_fee_bps",
+          "type": "u64"
+        }
+      ]
     },
     {
       "name": "reclaim_prize",
@@ -1191,6 +1198,36 @@
       "args": []
     },
     {
+      "name": "reset_draw",
+      "docs": [
+        "Rescue a raffle stuck in Drawing. If the keeper committed a Switchboard",
+        "randomness but the reveal never landed (crash, RPC outage), the raffle",
+        "freezes: settle_draw can't run (randomness expired) and request_draw",
+        "refuses (status != Open). Once the commitment is provably stale (past",
+        "STALE_DRAW_SLOTS), reset the raffle to Open so it can be drawn again.",
+        "",
+        "Permissionless: the staleness guard means there is no live draw to",
+        "disrupt and no re-roll advantage (the old randomness is unrevealable)."
+      ],
+      "discriminator": [
+        230,
+        64,
+        223,
+        23,
+        84,
+        160,
+        210,
+        227
+      ],
+      "accounts": [
+        {
+          "name": "raffle",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "set_fee_recipient",
       "docs": [
         "Re-point where the platform fee goes (e.g. a treasury wallet)."
@@ -1257,6 +1294,60 @@
         {
           "name": "new_recipient",
           "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "set_platform_config",
+      "docs": [
+        "Platform authority: update the treasury and/or protocol fee (bps)."
+      ],
+      "discriminator": [
+        101,
+        174,
+        224,
+        248,
+        61,
+        199,
+        25,
+        216
+      ],
+      "accounts": [
+        {
+          "name": "master",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  115,
+                  116,
+                  101,
+                  114
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "master"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "treasury",
+          "type": "pubkey"
+        },
+        {
+          "name": "platform_fee_bps",
+          "type": "u64"
         }
       ]
     },
@@ -1375,6 +1466,19 @@
         94,
         93,
         75
+      ]
+    },
+    {
+      "name": "DrawReset",
+      "discriminator": [
+        33,
+        132,
+        17,
+        156,
+        167,
+        70,
+        108,
+        116
       ]
     },
     {
@@ -1633,36 +1737,51 @@
     },
     {
       "code": 6027,
+      "name": "RandomnessStillValid",
+      "msg": "Randomness is still within its reveal window; the draw cannot be reset yet."
+    },
+    {
+      "code": 6028,
+      "name": "NoWinner",
+      "msg": "Raffle has no winner; prize cannot be delivered."
+    },
+    {
+      "code": 6029,
+      "name": "PrizeStillEscrowed",
+      "msg": "Reclaim the escrowed prize (reclaim_prize_token) before cancelling."
+    },
+    {
+      "code": 6030,
       "name": "VrfDisabled",
       "msg": "VRF draw path is disabled in this build (compile with --features vrf)."
     },
     {
-      "code": 6028,
+      "code": 6031,
       "name": "InvalidPrize",
       "msg": "Invalid prize configuration for this prize kind."
     },
     {
-      "code": 6029,
+      "code": 6032,
       "name": "WrongPrizeKind",
       "msg": "Wrong prize kind for this instruction."
     },
     {
-      "code": 6030,
+      "code": 6033,
       "name": "AlreadyFunded",
       "msg": "The prize has already been funded."
     },
     {
-      "code": 6031,
+      "code": 6034,
       "name": "PrizeNotFunded",
       "msg": "The on-chain prize has not been funded yet."
     },
     {
-      "code": 6032,
+      "code": 6035,
       "name": "AlreadyDelivered",
       "msg": "The prize has already been delivered."
     },
     {
-      "code": 6033,
+      "code": 6036,
       "name": "HasParticipants",
       "msg": "The raffle already has participants."
     }
@@ -1684,6 +1803,18 @@
           {
             "name": "commit_slot",
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DrawReset",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u32"
           }
         ]
       }
@@ -1716,6 +1847,27 @@
           {
             "name": "last_id",
             "type": "u32"
+          },
+          {
+            "name": "authority",
+            "docs": [
+              "Platform admin — may update the treasury and protocol fee."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "treasury",
+            "docs": [
+              "Destination for the protocol fee taken from every settled raffle."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "platform_fee_bps",
+            "docs": [
+              "Protocol fee in basis points, applied to every raffle's pool."
+            ],
+            "type": "u64"
           }
         ]
       }
